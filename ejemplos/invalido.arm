@@ -1,0 +1,1 @@
+WHEN peso > 5 THEN { CERRAR PINZA }

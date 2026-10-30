@@ -1,0 +1,6 @@
+WHEN peso > 5 THEN {
+  IF peso < 10 { MOVER BASE 60; }
+  ELSE IF peso < 20 { MOVER BASE 120; }
+  ELSE { MOVER BASE 180; }
+  CERRAR PINZA;
+}
