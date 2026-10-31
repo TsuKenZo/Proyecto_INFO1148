@@ -1,6 +1,16 @@
-WHEN peso > 5 THEN {
-  IF peso < 10 { MOVER BASE 60; }
-  ELSE IF peso < 20 { MOVER BASE 120; }
-  ELSE { MOVER BASE 180; }
+WHEN pieza_detectada == TRUE THEN {
+  MOVER BRAZO 30;
   CERRAR PINZA;
+  MOVER BRAZO 120;
+  IF peso < 100 {
+    MOVER BASE 60;
+  } ELSE IF peso < 300 {
+    MOVER BASE 120;
+  } ELSE {
+    MOVER BASE 180;
+  }
+  MOVER BRAZO 30;
+  ABRIR PINZA;
+  MOVER BRAZO 120;
+  MOVER BASE 0;
 }

@@ -180,7 +180,7 @@ R9 & Poder sumar sensores, partes o acciones, e incluso usar el lenguaje en otro
 El informe sigue el orden que sugiere el enunciado. La Tabla~\ref{tab:rubrica} indica en qué
 sección se encuentra la evidencia de cada criterio de la rúbrica. Los conjuntos FIRST, FOLLOW y de predicción, y la tabla LL(1), se calcularon aplicando las reglas
 de la sección~\ref{sec:firstfollow} y se verificaron con un script auxiliar
-(\tm{verificador\_ll1.py}), que solo sirve para contrastar los resultados y no reemplaza al parser del proyecto.
+(\tm{verificador\_ll1.py}), que solo sirve para contrastar los resultados y no reemplaza al parser del proyecto. El uso de IA se declara en el \hyperlink{anexoD}{Anexo D}”
 
 \begin{table}[H]
 \centering\small
@@ -315,16 +315,18 @@ Lo definimos como la unión de cuatro conjuntos disjuntos:
 \Sigma_{\mathrm{c}} &= \Sigma_{\text{letra}} \cup \Sigma_{\text{dig}} \cup \Sigma_{\text{sim}} \cup \Sigma_{\text{blanco}} && |\Sigma_{\mathrm{c}}| = 76
 \end{align*}
 
-Un programa ARMLANG es una cadena $x \in \Sigma_{\mathrm{c}}^{*}$, es decir, una secuencia finita
-(posiblemente vacía) de símbolos de $\Sigma_{\mathrm{c}}$. Los símbolos de $\Sigma_{\text{blanco}}$
+El texto de entrada es una cadena $x \in \Sigma_{\mathrm{c}}^{*}$, es decir, una secuencia finita
+(posiblemente vacía) de símbolos de $\Sigma_{\mathrm{c}}$. Para ser un programa válido, además debe
+respetar la gramática, que exige al menos una regla; por eso la entrada vacía se rechaza. Los símbolos de $\Sigma_{\text{blanco}}$
 solo separan tokens y el léxico los descarta. El carácter \tm{!} solo es válido dentro del operador
 \tm{!=}, y \tm{=} solo dentro de \tm{==}, \tm{<=}, \tm{>=} y \tm{!=}. Cualquier otro símbolo
 (por ejemplo \tm{@}, \tm{-} o \tm{\#}) no pertenece a $\Sigma_{\mathrm{c}}$ y el analizador léxico lo rechaza.
 
 \subsubsection*{Familias de lexemas}
 
-Tres de los terminales representan conjuntos infinitos de cadenas, así que los definimos
-formalmente sobre $\Sigma_{\mathrm{c}}$, con $R$ el conjunto de las 15 palabras reservadas:
+Los terminales \tm{ID} y \tm{NUM} representan conjuntos infinitos de cadenas; \tm{OP\_REL}
+representa un conjunto finito de seis operadores. Definimos las tres familias de lexemas
+sobre $\Sigma_{\mathrm{c}}$, con $R$ el conjunto de las 15 palabras reservadas:
 
 \begin{align*}
 \mathrm{ID} &= \{\, w \in (\Sigma_{\text{letra}} \cup \{\texttt{\_}\})(\Sigma_{\text{letra}} \cup \Sigma_{\text{dig}} \cup \{\texttt{\_}\})^{*} \ :\ \mathrm{may}(w) \notin R \,\}\\
@@ -369,7 +371,7 @@ Operadores relacionales & \tm{OP\_REL} & \tm{>=}, \tm{<=}, \tm{==}, \tm{!=}, \tm
 \hline
 Operadores lógicos & \tm{AND}, \tm{OR}, \tm{NOT} & Son también palabras reservadas \\
 \hline
-Separadores & \tm{PUNTO\_COMA}, \tm{PARENT\_IZQ}, \tm{PARENT\_DER}, \tm{LLAVE\_IZQ}, \tm{LLAVE\_DER} & \tm{;}\quad \tm{(}\quad \tm{)}\quad \tm{\{}\quad \tm{\}} \\
+Separadores & \tm{;}, \tm{(}, \tm{)}, \tm{\{}, \tm{\}} & \tm{;}\quad \tm{(}\quad \tm{)}\quad \tm{\{}\quad \tm{\}} \\
 \hline
 \end{tabularx}
 \caption{Categorías de tokens de ARMLANG.}
@@ -382,39 +384,46 @@ sí son identificadores, y es a propósito: así se pueden definir otros sensore
 gramática. En cambio, las partes del brazo son palabras reservadas, y por eso la gramática
 misma rechaza \tm{MOVER PINZA 90;}.
 
-\subsection{Adaptación del analizador léxico entregado}
+\subsection{Implementación del analizador léxico}
 
-Partimos del analizador léxico que entregó el docente (escrito para un ejemplo de IoT) y le
-hicimos los cambios que siguen, sin alterar su estructura:
+El módulo \tm{lexico.py} implementa un analizador sencillo mediante expresiones regulares de
+la biblioteca estándar. El patrón combinado reconoce números, operadores relacionales,
+separadores, identificadores, blancos y caracteres no reconocidos. Sus decisiones concretas son:
 
 \begin{itemize}[nosep]
-\item Se amplió el conjunto de palabras reservadas con \tm{IF}, \tm{ELSE}, \tm{MOVER}, \tm{ABRIR},
-\tm{CERRAR}, \tm{BASE}, \tm{BRAZO} y \tm{PINZA} (\tm{WHEN}, \tm{THEN}, \tm{AND}, \tm{OR}, \tm{NOT},
-\tm{TRUE} y \tm{FALSE} ya estaban).
-\item Se agregaron los tokens \tm{LLAVE\_IZQ} y \tm{LLAVE\_DER} antes del patrón \tm{ERROR}.
-\item El patrón de espacios pasó a incluir el retorno de carro (\verb|\r|), para que los archivos
-escritos en Windows no produzcan un error léxico.
-\item Cada token guarda además la posición de su primer carácter (\tm{coincidencia.start()}), para
-localizar los errores sintácticos, y el mensaje de error léxico también la incluye.
+\item Las 15 palabras reservadas de la Tabla~\ref{tab:tokens} se reconocen a partir de los identificadores,
+comparando su lexema en mayúsculas con \tm{RESERVADAS}. El tipo se normaliza a mayúsculas y
+el lexema conserva su escritura original.
+\item Los números usan \tm{[0-9]+}, conforme al alfabeto de dígitos ASCII. En los operadores
+relacionales se comprueban primero los de dos caracteres, como \tm{>=}, antes de los de uno.
+\item Los signos \tm{;}, \tm{(}, \tm{)}, \tm{\{} y \tm{\}} se reconocen mediante el grupo interno
+\tm{SEPARADOR}. Al crear el token, su tipo se sustituye por el propio símbolo.
+\item Se ignoran espacio, tabulación, retorno de carro y salto de línea, incluidos los blancos de
+archivos con terminaciones de línea de Windows.
+\item Cada token es un objeto inmutable \tm{Token(tipo, lexema, posicion)}. La posición se obtiene
+con \tm{coincidencia.start()} y permite localizar los errores desde el carácter cero.
+\item El grupo \tm{ERROR} detecta el primer carácter que no puede formar un token y produce
+\tm{ErrorLexico}, con el símbolo y su posición.
 \end{itemize}
 
-El parser trabaja con los nombres de terminales de la gramática, que coinciden con los del
-analizador léxico salvo en los separadores:
+Los tipos que recibe el parser coinciden directamente con los terminales de la gramática,
+incluidos los separadores. No existe una conversión posterior de nombres como
+\tm{PUNTO\_COMA} o \tm{LLAVE\_IZQ}: la Tabla~\ref{tab:corresp} muestra los tipos efectivamente devueltos.
 
 \begin{table}[H]
 \centering\small
 \begin{tabular}{|c|c|}
 \hline
-\textbf{Token del analizador léxico} & \textbf{Terminal en la gramática} \\
+\textbf{Tipo devuelto por el léxico} & \textbf{Terminal en la gramática} \\
 \hline
-\tm{PUNTO\_COMA} & \tm{;} \\
+\tm{;} & \tm{;} \\
 \hline
-\tm{PARENT\_IZQ} / \tm{PARENT\_DER} & \tm{(} / \tm{)} \\
+\tm{(} / \tm{)} & \tm{(} / \tm{)} \\
 \hline
-\tm{LLAVE\_IZQ} / \tm{LLAVE\_DER} & \tm{\{} / \tm{\}} \\
+\tm{\{} / \tm{\}} & \tm{\{} / \tm{\}} \\
 \hline
 \end{tabular}
-\caption{Correspondencia entre tokens y terminales.}
+\caption{Correspondencia directa entre tipos de tokens y terminales.}
 \label{tab:corresp}
 \end{table}
 
@@ -1008,7 +1017,6 @@ FOLLOW(\nt{bloque}), pero nunca inmediatamente después de una sentencia complet
 % ============================================================
 % 6. TABLA LL(1)
 % ============================================================
-\begin{landscape}
 \section{Tabla LL(1)}
 \label{sec:tabla}
 La tabla predictiva $M[A, a]$ se construye con el conjunto de predicción: para cada producción $A \rightarrow \alpha$ y cada
@@ -1044,7 +1052,6 @@ significa error sintáctico. La numeración de las producciones es la de la secc
 \caption{Tabla predictiva LL(1). Cada celda indica el número de la producción; las celdas vacías son error sintáctico.}
 \label{tab:matriz}
 \end{table}
-\end{landscape}
 
 \subsection{Conflictos}
 \label{sec:conflictos}
@@ -1117,7 +1124,7 @@ aplica con sus \tm{if}.
 
 \begin{table}[H]
 \centering\small
-\begin{tabularx}{\linewidth}{|L{0.25\linewidth}|X|}
+\begin{tabularx}{\linewidth}{|L{0.31\linewidth}|X|}
 \hline
 \textbf{Módulo} & \textbf{Responsabilidad} \\
 \hline
@@ -1135,6 +1142,8 @@ aplica con sus \tm{if}.
 \hline
 \tm{verificaciones/test\_nucleo.py} & Comprobaciones de la API: casos del informe, mensajes, estructura del AST y contraste con el auxiliar. \\
 \hline
+\tm{verificaciones/test\_integracion.py} & Comprobaciones de la impresión jerárquica, entrada por archivo o texto, errores de lectura y códigos de salida. \\
+\hline
 \end{tabularx}
 \caption{Módulos del proyecto.}
 \label{tab:modulos}
@@ -1146,7 +1155,7 @@ La Tabla~\ref{tab:mapa} muestra la función que implementa cada no terminal y la
 de los conjuntos de predicción.
 
 {\footnotesize
-\begin{longtable}{|L{\cw{0.140}}|L{\cw{0.170}}|L{\cw{0.080}}|L{\cw{0.610}}|}
+\begin{longtable}{|L{\cw{0.140}}|L{\cw{0.210}}|L{\cw{0.100}}|L{\cw{0.550}}|}
 \caption{Correspondencia entre la gramática y las funciones del parser.}\label{tab:mapa}\\
 \hline
 \textbf{No terminal} & \textbf{Función} & \textbf{Prod.} & \textbf{Decisión (token actual $\Rightarrow$ producción)} \\ \hline\endfirsthead
@@ -1237,7 +1246,7 @@ ast = Parser(tokenizar(texto), len(texto)).analizar()
 \begin{lstlisting}
 python3 -B -m unittest discover -s verificaciones -v
 \end{lstlisting}
-La interfaz \tm{main.py} admite texto o archivos UTF-8, imprime el AST y devuelve códigos de salida diferenciados para entradas inválidas y errores de lectura. Las pruebas también verifican la interfaz. El enlace y las capturas se incorporarán en los anexos.
+La interfaz \tm{main.py} admite texto o archivos UTF-8, imprime el AST y devuelve códigos de salida diferenciados para entradas inválidas y errores de lectura. Las pruebas también verifican la interfaz. El enlace al código está en el \hyperlink{anexoA}{Anexo A}; las capturas de ejecución se muestran en el \hyperlink{anexoB}{Anexo B}.
 
 % ============================================================
 % 8. ÁRBOL SINTÁCTICO / AST
@@ -1336,7 +1345,7 @@ del programa.
 \label{tab:ast}
 \end{table}
 
-Los nodos se implementan como \tm{dataclass} y pueden compararse por sus campos. Los atributos concretos son \tm{reglas} en \tm{Programa}, \tm{condicion} y \tm{bloque} en \tm{Regla}, y \tm{sentencias} en \tm{Bloque}. \tm{Si} almacena \tm{condicion}, \tm{entonces} y \tm{sino}; esta última es \tm{None}, un \tm{Bloque} o un nuevo \tm{Si} para \tm{ELSE IF}. \tm{O} e \tm{Y} tienen \tm{izquierda} y \tm{derecha}; \tm{No} tiene \tm{operando}. \tm{Comparacion} conserva el identificador y operador originales, y convierte el valor a \tm{int} o \tm{bool}. Las listas mantienen el orden de entrada y cada instancia recibe su propia lista. La impresión jerárquica se añadirá sobre estos datos.
+Los nodos se implementan como \tm{dataclass} y pueden compararse por sus campos. Los atributos concretos son \tm{reglas} en \tm{Programa}, \tm{condicion} y \tm{bloque} en \tm{Regla}, y \tm{sentencias} en \tm{Bloque}. \tm{Si} almacena \tm{condicion}, \tm{entonces} y \tm{sino}; esta última es \tm{None}, un \tm{Bloque} o un nuevo \tm{Si} para \tm{ELSE IF}. \tm{O} e \tm{Y} tienen \tm{izquierda} y \tm{derecha}; \tm{No} tiene \tm{operando}. \tm{Comparacion} conserva el identificador y operador originales, y convierte el valor a \tm{int} o \tm{bool}. Las listas mantienen el orden de entrada y cada instancia recibe su propia lista. La función \tm{formatear\_ast(programa)} recorre estos nodos con una pila explícita, conserva el orden de sus hijos y devuelve el texto jerárquico. \tm{imprimir\_ast(programa)} imprime ese texto. En los nodos \tm{Si}, las etiquetas \tm{entonces} y \tm{sino} distinguen las ramas; los valores booleanos se muestran como \tm{TRUE} o \tm{FALSE}.
 
 
 AST de la regla de clasificación (versión reducida a dos contenedores, por espacio):
@@ -1486,7 +1495,22 @@ que solo sirve dentro de una regla \tm{WHEN} y no dentro de un \tm{IF}, porque \
 contextos. El mensaje sigue siendo correcto en lo principal (falta el \tm{\{} del bloque), y una mejora posible es pasar
 el contexto a \nt{condicion}.
 
-\textbf{Capturas de mensajes reales del programa:} \pend{agregar capturas de pantalla de los errores en el Anexo B}
+\textbf{Límites de la implementación.} La gramática define números y construcciones anidadas
+sin una cota de longitud, pero la implementación utiliza los recursos del intérprete de Python.
+Una secuencia suficientemente larga de \tm{NOT} o un anidamiento profundo puede superar el
+límite de recursión y producir \tm{RecursionError}. La conversión de \tm{NUM} mediante \tm{int}
+está sujeta al límite de conversión decimal configurado en el intérprete; un número que lo
+supere puede producir \tm{ValueError}. Estas excepciones no se capturan actualmente en la
+interfaz como errores del lenguaje y pueden mostrar un traceback. Son límites de ejecución,
+no restricciones adicionales de la gramática. Los 27 casos documentados no alcanzan esos límites.
+Una mejora posterior es definir cotas de recursos y comunicar su superación mediante mensajes
+controlados, con pruebas específicas para esos casos.
+
+\textbf{Captura del mensaje de error:}
+la Figura~\ref{fig:ejecucion_invalida}, en el
+\hyperlink{anexoB}{Anexo B}, muestra el diagnóstico
+producido por el programa.
+
 
 % ============================================================
 % 10. CASOS DE PRUEBA
@@ -1585,9 +1609,11 @@ análisis (el \emph{else} colgante y el conjunto FOLLOW circular de \nt{si}, \nt
 
 Como límites del trabajo, el parser solo revisa la estructura: no comprueba que los ángulos estén en un rango físico ni
 modela la ejecución, por ejemplo la cola de eventos \tm{WHEN} que se acumulan mientras el brazo está ocupado. Ambas cosas
-son extensiones naturales: un análisis semántico y un intérprete o simulador sobre el AST.
+son extensiones naturales: un análisis semántico y un intérprete o simulador sobre el AST. Además,
+la implementación está sujeta a los límites de recursión y conversión numérica del intérprete,
+explicados en la sección~\ref{sec:errores}; la gestión controlada de su superación queda como mejora.
 
-La ejecución de la suite en Python 3.12.3 completó 18 pruebas, incluidos los 27 casos de estas tablas, sin fallos. Las comprobaciones adicionales cubrieron la estructura del AST, la precedencia, los errores y la interfaz de terminal. Estos resultados respaldan el funcionamiento para los casos evaluados, sin demostrar corrección para todas las entradas posibles.
+La ejecución de la suite en Python completó 18 pruebas automatizadas, una de las cuales recorre los 27 casos de las tablas, sin fallos. Las comprobaciones adicionales cubrieron la estructura del AST, la precedencia, los errores y la interfaz de terminal. Estos resultados respaldan el funcionamiento para los casos evaluados, sin demostrar corrección para todas las entradas posibles.
 
 % ============================================================
 % 12. ANEXOS
@@ -1597,8 +1623,9 @@ La ejecución de la suite en Python 3.12.3 completó 18 pruebas, incluidos los 2
 
 Código fuente, README, archivos auxiliares y ejemplos: \url{https://github.com/TsuKenZo/Proyecto_INFO1148}
 
-El repositorio tendrá la estructura de la Tabla~\ref{tab:repo}, y el README incluirá las instrucciones de ejecución, las
-dependencias, el formato de entrada y ejemplos.
+El repositorio contiene los archivos de la Tabla~\ref{tab:repo}. El README describe las instrucciones
+de ejecución, los requisitos, el formato de entrada y los ejemplos. Las pruebas requieren también
+\tm{main.tex}, del que extraen las 27 entradas documentadas.
 
 \begin{table}[H]
 \centering\small
@@ -1610,21 +1637,78 @@ dependencias, el formato de entrada y ejemplos.
 \hline
 \tm{lexico.py}, \tm{parser.py}, \tm{arbol.py}, \tm{main.py} & Código fuente del analizador. \\
 \hline
-\tm{pruebas.py} & Los 27 casos de la sección~\ref{sec:pruebas}. \\
+\tm{pruebas.py} y \tm{verificaciones/} & Ejecutor y comprobaciones del núcleo y de la interfaz, incluidos los 27 casos de la sección~\ref{sec:pruebas}. \\
 \hline
 \tm{verificador\_ll1.py} & Cálculo de FIRST, FOLLOW y tabla LL(1). \\
 \hline
 \tm{ejemplos/} & Programas ARMLANG de ejemplo (válidos e inválidos). \\
 \hline
+\tm{main.tex} y \tm{figuras/} & Fuente del informe y recursos gráficos necesarios para compilarlo. \\
+\hline
 \end{tabularx}
-\caption{Estructura prevista del repositorio.}
+\caption{Archivos del repositorio.}
 \label{tab:repo}
 \end{table}
+
+\subsection*{Reproducción de la ejecución}
+
+Desde la carpeta del proyecto, con Python 3.10 o posterior y sin dependencias externas para
+el analizador, se pueden ejecutar los siguientes comandos:
+
+\begin{lstlisting}
+python3 main.py --archivo ejemplos/clasificacion.arm
+python3 main.py --archivo ejemplos/invalido.arm
+python3 pruebas.py
+python3 verificador_ll1.py
+\end{lstlisting}
 
 \section*{Anexo B. Demostración funcional}
 \hypertarget{anexoB}{}
 
-\pend{capturas de pantalla de la ejecución: entrada válida con su AST, entradas inválidas con sus mensajes de error y el resultado de \tm{pruebas.py}}
+Las siguientes capturas muestran la ejecución del analizador:
+aceptación de un programa válido con su AST, detección de un
+error sintáctico y ejecución de las pruebas automatizadas.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[
+        width=\linewidth,
+        height=0.70\textheight,
+        keepaspectratio
+    ]{figuras/clasificacion.png}
+    \caption{Análisis del programa de clasificación: entrada
+    aceptada y AST con decisión \tm{IF}--\tm{ELSE IF}--\tm{ELSE}
+    y acciones del brazo del ciclo completo.}
+    \label{fig:ejecucion_valida}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{figuras/invalido.png}
+    \caption{Rechazo de una entrada inválida: el analizador
+    identifica la ausencia de punto y coma e informa la
+    posición y el símbolo encontrado.}
+    \label{fig:ejecucion_invalida}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{figuras/pruebas1.png}
+    \caption{Primera parte de las pruebas automatizadas:
+    comprobaciones de la interfaz, los 27 casos del informe,
+    el análisis léxico y la estructura del AST.}
+    \label{fig:pruebas_inicio}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{figuras/pruebas2.png}
+    \caption{Continuación y resultado de las pruebas:
+    las 18 pruebas automatizadas finalizan correctamente
+    con el resultado \texttt{OK}.}
+    \label{fig:pruebas_resultado}
+\end{figure}
+
 
 \section*{Anexo C. Definición formal completa de la gramática}
 \hypertarget{anexoC}{}
@@ -1665,4 +1749,42 @@ G = (V,\ \Sigma,\ P,\ S), \qquad S = \nt{programa}
 $P$ es el conjunto de las 33 producciones de la sección~\ref{sec:gramatica_completa}. Los símbolos \tm{ID}, \tm{NUM} y
 \tm{OP\_REL} son terminales que representan familias de cadenas, definidas formalmente en la sección~\ref{sec:alfabeto}.
 
+\section*{Anexo D. Declaración de uso de inteligencia artificial}
+\hypertarget{anexoD}{}
+
+De acuerdo con las reglas del curso para proyectos, declaramos el uso de
+herramientas de IA generativa en este trabajo:
+
+\begin{itemize}[nosep]
+\item \textbf{Claude} (Anthropic, Sonnet 5.5, octubre de 2026): apoyo en la
+generación de ideas, y en la redacción, estructuración y revisión del informe.
+\item \textbf{Codex} (OpenAI, GPT-6.1 Sol, octubre de 2026): apoyo en la creación del
+código del analizador (léxico, parser, AST y pruebas).
+\end{itemize}
+
+\textbf{Autoría y diseño.} La elección del dominio (brazo robótico
+clasificador), el diseño del lenguaje ARMLANG, la gramática, la extensión
+creativa y las decisiones de diseño son de los integrantes del grupo. Las
+herramientas de IA se utilizaron de forma guiada: les indicamos qué necesitábamos
+en cada etapa y las dirigimos, mediante instrucciones y correcciones sucesivas,
+hasta llegar al resultado que deseábamos. También las usamos para contrastar
+ideas y explorar alternativas, y las decisiones finales las tomamos nosotros.
+
+\textbf{Redacción del informe.} Claude se utilizó para redactar y estructurar el
+texto a partir de nuestras indicaciones y del diseño ya definido por el grupo.
+Cada sección fue revisada y algunas fueron ajustadas por nosotros cuando fue necesario.
+
+\textbf{Código.} Codex se utilizó para crear el código a partir del diseño
+del lenguaje y de la gramática. En todo momento analizamos y validamos lo que el
+código hacía: comprobamos su correspondencia con la gramática y con las tablas
+FIRST, FOLLOW y LL(1), ejecutamos los casos de prueba del informe y corregimos
+lo necesario hasta obtener el comportamiento esperado.
+
+\textbf{Referencias.} 
+
+Anthropic. (2026). \emph{Claude} (Sonnet 5.5) [Modelo de lenguaje].
+\url{https://claude.ai}.
+
+OpenAI. (2026). \emph{Codex} (GPT-6.1 Sol) [Modelo de lenguaje].
+\url{https://openai.com}.
 \end{document}
